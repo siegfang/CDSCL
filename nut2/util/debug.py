@@ -7,7 +7,7 @@ A collection of utilities for text processing and debugging.
 
 import sys
 import time
-import re
+# import re
 
 from ..bolt.io import MemoryDataset
 
