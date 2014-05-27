@@ -27,7 +27,7 @@ parser.add_argument('s_unlabeled_file',
                     action="store",
                     help="source language unlabelled file path")
 
-parser.add_argument('target_unlabeled_file',
+parser.add_argument('t_unlabeled_file',
                     action="store",
                     help="target language unlabelled file path")
 
