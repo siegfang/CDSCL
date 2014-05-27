@@ -1,6 +1,3 @@
-import util.bow as bow
-import optparse
-import argparse
 
 __author__ = 'fangy'
 __version__ = "2.0"
