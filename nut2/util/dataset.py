@@ -11,14 +11,21 @@ from collections import defaultdict
 from itertools import chain
 
 from debug import timeit
-# from .externals import bolt
+from .. import bolt
 
 
-def parse_labeled_line(line):
+
+def parse_line(line):
     tokens = [tf for tf in line.rstrip().split(' ')]
     s, label = tokens[-1].split(':')
     assert s == "#label#"
     return label, [t for t in tokens[:-1] if len(t) > 0]
+
+def vectorize(tokens, voc):
+    doc = [(voc[term], int(freq)) for term, freq in tokens
+           if term in voc]
+    doc = sorted(doc)
+    return doc
 
 def disjoint_voc(s_voc, t_voc):
     n = len(s_voc)
@@ -59,7 +66,7 @@ def vocabulary(*bowfnames, **kargs):
             for i, line in enumerate(f):
                 if maxlines != -1 and i >= maxlines:
                     break
-                label, tokens = parse_labeled_line(line)
+                label, tokens = parse_line(line)
                 tokens = {}.fromkeys(tokens).keys()
                 for token in tokens:
                     fd[token] += 1
@@ -76,7 +83,7 @@ def load(fname, voc, dim, maxlines=-1):
         for i, line in enumerate(f):
             if maxlines != -1 and i >= maxlines:
                 break
-            label, tokens = parse_bow(line)
+            label, tokens = parse_line(line)
             doc = vectorize(tokens, voc)
             x = np.array(doc, dtype=bolt.sparsedtype)
             norm = np.linalg.norm(x['f1'])
@@ -91,3 +98,15 @@ def load(fname, voc, dim, maxlines=-1):
     if len(classes) == 2:
         labels[labels == 0] = -1
     return bolt.MemoryDataset(dim, instances, labels), classes
+
+def autolabel(instances, auxtask):
+    labels = np.ones((instances.shape[0],), dtype=np.float32)
+    labels *= -1
+    for i, x in enumerate(instances):
+        indices = x['f0']
+        for idx in auxtask:
+            if idx in indices:
+                labels[i] = 1
+                break
+
+    return labels

@@ -14,24 +14,20 @@ import pdb
 
 import numpy as np
 import math
-import optparse
 import copy
 
 from itertools import islice, ifilter
 from functools import partial
 from pprint import pprint
 
-from structlearn import pivotselection
-from structlearn import util
-from structlearn import structlearn
-from structlearn import auxtrainer
-from structlearn import auxstrategy
+import util
 from util.io import compressed_dump, compressed_load
-from util.bow import vocabulary, disjoint_voc, load
+from util.dataset import vocabulary, disjoint_voc, load
 from util.debug import timeit
 from structlearn import standardize
 import bolt
 from joblib import Parallel, delayed
+import structlearn, pivotselection, auxtrainer, auxstrategy
 
 __author__ = "Peter Prettenhofer <peter.prettenhofer@gmail.com>"
 __version__ = "0.1"
@@ -322,7 +318,6 @@ class DictTranslator(object):
         return DictTranslator(dictionary, s_ivoc, t_voc)
 
 
-
 def train(arg_dict):
     """Training script for CLSCL.
 
@@ -384,3 +379,60 @@ def train(arg_dict):
     model.s_voc = s_voc
     model.t_voc = t_voc
     compressed_dump(arg_dict['model_file'], model)
+
+def clone(my_object):
+    """Returns a deep copy of `my_object`. """
+    return copy.deepcopy(my_object)
+
+# def predict(arg_dict):
+#     """Prediction script for CLSCL.  """
+#     parser = predict_args_parser()
+#     options, argv = parser.parse_args()
+#     if len(argv) != 3:
+#         parser.error("incorrect number of arguments (use `--help` for help).")
+#
+#     fname_s_train = argv[0]
+#     fname_model = argv[1]
+#     fname_t_test = argv[2]
+#     reg = float(options.reg)
+#
+#     clscl_model = compressed_load(fname_model)
+#
+#     s_voc = clscl_model.s_voc
+#     t_voc = clscl_model.t_voc
+#     dim = len(s_voc) + len(t_voc)
+#     print("|V_S| = %d\n|V_T| = %d" % (len(s_voc), len(t_voc)))
+#     print("|V| = %d" % dim)
+#
+#     s_train, classes = load(fname_s_train, s_voc, dim)
+#     t_test, _ = load(fname_t_test, t_voc, dim)
+#
+#     print("classes = {%s}" % ",".join(classes))
+#     n_classes = len(classes)
+#
+#     train = clscl_model.project(s_train)
+#     test = clscl_model.project(t_test)
+#
+#     del clscl_model  # free clscl model
+#
+#     epochs = int(math.ceil(10.0**6 / train.n))
+#     loss = bolt.ModifiedHuber()
+#     sgd = bolt.SGD(loss, reg, epochs=epochs, norm=2)
+#     if n_classes == 2:
+#         model = bolt.LinearModel(train.dim, biasterm=False)
+#         trainer = sgd
+#     else:
+#         model = bolt.GeneralizedLinearModel(train.dim, n_classes,
+#                                             biasterm=False)
+#         trainer = bolt.trainer.OVA(sgd)
+#
+#     scores = Parallel(n_jobs=options.n_jobs, verbose=options.verbose)(
+#                 delayed(_predict_score)(i, trainer, clone(model), train, test)
+#         for i in range(options.repetition))
+#     print "ACC: %.2f (%.2f)" % (np.mean(scores), np.std(scores))
+#
+#
+# def _predict_score(i, trainer, model, train, test):
+#     train.shuffle(i)
+#     trainer.train(model, train, verbose=0, shuffle=False)
+#     return 100.0 - bolt.eval.errorrate(model, test)

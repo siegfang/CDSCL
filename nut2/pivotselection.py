@@ -1,5 +1,9 @@
 __author__ = 'fangy'
 
+#!/usr/bin/python
+#
+# License: BSD Style
+
 """
 pivotselection
 ==============
@@ -14,8 +18,8 @@ from operator import itemgetter
 
 import util
 
-import bolt
-from util.debug import trace, timeit
+from ..externals import bolt
+from ..util import trace, timeit
 
 
 class PivotSelector(object):
@@ -34,7 +38,7 @@ class FreqSelector(PivotSelector):
         self.support = support
 
     def select(self, ds, preselection=None):
-        counts = util.bow.count(ds)
+        counts = util.count(ds)
         gen = (idx for idx in counts.argsort()[::-1] if counts[idx] >= self.support)
         if preselection != None:
             preselection = set(preselection)
@@ -111,6 +115,7 @@ def mutualinformation(bs, preselection=None):
         N_term[term] = term_stats
     N += 1
 
+
     mi = {}
 
     N += 2  # account for pseudo counts
@@ -139,6 +144,7 @@ def mutualinformation(bs, preselection=None):
     else:
         return (i for i, v in mi)
 
+
 def roundrobin(*iterables):
     "roundrobin('ABC', 'D', 'EF') --> A D E B F C"
     # Recipe credited to George Sakkis
@@ -151,18 +157,3 @@ def roundrobin(*iterables):
         except StopIteration:
             pending -= 1
             nexts = cycle(islice(nexts, pending))
-
-
-
-def autolabel(instances, auxtask):
-    labels = np.ones((instances.shape[0],), dtype=np.float32)
-    labels *= -1
-    for i, x in enumerate(instances):
-        indices = x['f0']
-        for idx in auxtask:
-            if idx in indices:
-                labels[i] = 1
-                break
-
-    return labels
-
