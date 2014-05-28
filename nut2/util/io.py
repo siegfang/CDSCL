@@ -57,4 +57,3 @@ def compressed_load(fname):
     model = pickle.load(f)
     f.close()
     return model
-

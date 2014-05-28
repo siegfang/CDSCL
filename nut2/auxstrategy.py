@@ -14,25 +14,24 @@ A module containing different trainer strategies for the auxiliary tasks.
 from __future__ import division
 
 import sys
+import numpy as np
 import subprocess
 import shlex
 import inspect
+import os
 import json
 import tempfile
 import shutil
 import cPickle as pickle
+
+from abc import ABCMeta, abstractmethod
+from scipy import sparse
 from itertools import izip, count
 from collections import defaultdict
 
-import numpy as np
-import os
-from abc import ABCMeta, abstractmethod
-from scipy import sparse
-
-import util
-from util.debug import timeit
+import util.bow
+from util.debug import timeit, trace
 from joblib import Parallel, delayed
-from nut2 import dumbomapper, auxtrainer
 
 
 class Error(Exception):
@@ -74,7 +73,7 @@ class SerialTrainingStrategy(TrainingStrategy):
         for j, auxtask, task_mask in izip(count(), auxtasks, task_masks):
 
             if inverted_index is None:
-                labels = util.dataset.autolabel(ds.instances, auxtask)
+                labels = util.bow.autolabel(ds.instances, auxtask)
             else:
                 occurances = inverted_index[j]
                 labels = np.ones((ds.n,), dtype=np.float32)
@@ -121,6 +120,7 @@ class ParallelTrainingStrategy(TrainingStrategy):
         if inverted_index == None:
             inverted_index = defaultdict(lambda: None)
         print "Run joblib.Parallel"
+        
         res = Parallel(n_jobs=self.n_jobs, verbose=1)(
                 delayed(_train_aux_classifier)(i, auxtask,
                                                task_mask,
@@ -172,7 +172,7 @@ def _train_aux_classifier(i, auxtask, task_mask, ds,
         second array holds the values.
     """
     if occurrences is None:
-        labels = util.dataset.autolabel(ds.instances, auxtask)
+        labels = util.bow.autolabel(ds.instances, auxtask)
     else:
         labels = np.ones((ds.n,), dtype=np.float32)
         labels *= -1.0
@@ -268,10 +268,12 @@ class HadoopTrainingStrategy(TrainingStrategy):
         """Runs the dumbomapper with input `ftasks` and
         `fexamples`.
         """
+        import dumbomapper
+        import auxtrainer
 
         fmapper = inspect.getsourcefile(dumbomapper)
         fauxtrainer = inspect.getsourcefile(auxtrainer)
-        futil = inspect.getsourcefile(util)
+        futil = inspect.getsourcefile(util.bow)
 
         param = {"ftasks": ftasks, "fexamples": fexamples, "fout": fout,
                  "streaming_jar": streaming_jar, "futil": futil,

@@ -23,13 +23,11 @@ hadoop jar /usr/lib/hadoop/contrib/streaming/hadoop-0.18.3-2cloudera0.3.0-stream
 
 
 """
-
+ 
 import sys
-import pickle
-
 import os
+import pickle
 import numpy as np
-
 
 try:
     import json
@@ -37,7 +35,8 @@ except ImportError:
     import simplejson as json
 
 import bolt
-import util
+import util.bow
+from auxtrainer import *
 
 
 def serialize(arr):
@@ -65,7 +64,7 @@ def main(separator='\t'):
         trainer = eval(params[u"trainer"])
 
         # label according to auxtask
-        labels = util.autolabel(instances, auxtask)
+        labels = util.bow.autolabel(instances, auxtask)
 
         # mask features (either only auxtask or provided masks)
         mask = np.ones((ds.dim,), dtype=np.int32, order="C")
