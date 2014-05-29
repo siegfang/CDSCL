@@ -111,7 +111,9 @@ class ParallelTrainingStrategy(TrainingStrategy):
 
     @timeit
     def train_aux_classifiers(self, ds, auxtasks, task_masks,
-                              classifier_trainer, inverted_index=None):
+                              classifier_trainer,
+                              vec_converter,
+                              inverted_index=None):
         dim = ds.dim
         w_data = []
         row = []
@@ -125,6 +127,7 @@ class ParallelTrainingStrategy(TrainingStrategy):
                 delayed(_train_aux_classifier)(i, auxtask,
                                                task_mask,
                                                ds, classifier_trainer,
+                                               vec_converter,
                                                inverted_index[i])
             for i, auxtask, task_mask in izip(count(), auxtasks, task_masks))
 
@@ -141,7 +144,9 @@ class ParallelTrainingStrategy(TrainingStrategy):
 
 
 def _train_aux_classifier(i, auxtask, task_mask, ds,
-                          classifier_trainer, occurrences=None):
+                          classifier_trainer,
+                          vec_converter,
+                          occurrences=None):
     """Trains a single auxiliary classifier.
 
     Parameters
@@ -182,6 +187,9 @@ def _train_aux_classifier(i, auxtask, task_mask, ds,
     # create feature mask
     mask = np.ones((ds.dim,), dtype=np.int32, order="C")
     mask[task_mask] = 0
+
+    ds = vec_converter.instance2vec(ds, mask)
+
     w = classifier_trainer.train_classifier(ds, mask)
     return i, (w.nonzero()[0], w[w.nonzero()[0]])
 

@@ -15,6 +15,7 @@ import pdb
 
 import numpy as np
 import math
+import optparse
 import copy
 
 from itertools import islice, ifilter
@@ -29,7 +30,9 @@ import auxstrategy
 from util.io import compressed_dump, compressed_load
 from util.bow import vocabulary, disjoint_voc, load
 from util.debug import timeit
+from util.vec import VecConverter
 from structlearn import standardize
+from gensim import Word2Vec
 import bolt
 from joblib import Parallel, delayed
 
@@ -156,7 +159,7 @@ class CLSCLTrainer(object):
     """
 
     def __init__(self, s_train, s_unlabeled, t_unlabeled,
-                 pivotselector, pivottranslator, trainer, strategy,
+                 pivotselector, pivottranslator, trainer, strategy, vec_converter,
                  verbose=0):
         self.s_train = s_train
         self.s_unlabeled = s_unlabeled
@@ -166,6 +169,7 @@ class CLSCLTrainer(object):
         self.trainer = trainer
         self.strategy = strategy
         self.verbose = verbose
+        self.vec_converter = vec_converter
 
     @timeit
     def select_pivots(self, m, phi):
@@ -235,7 +239,8 @@ class CLSCLTrainer(object):
         ds.shuffle(13)
         struct_learner = structlearn.StructLearner(k, ds, pivots,
                                                    self.trainer,
-                                                   self.strategy)
+                                                   self.strategy,
+                                                   self.vec_converter)
         struct_learner.learn()
         self.project(struct_learner, verbose=1)
         del struct_learner.dataset
@@ -254,6 +259,12 @@ class CLSCLTrainer(object):
         such that the average L2 norm of the training examples
         equals 1.
         """
+        
+        mask = np.ones((s_train.dim,), dtype=np.int32, order="C")
+        s_train = instance2vec(s_train, mask)
+        s_unlabeled = instance2vec(s_unlabeled, mask)
+        t_unlabeled = instance2vec(t_unlabeled, mask)
+
         s_train = struct_learner.project(self.s_train, dense=True)
         s_unlabeled = struct_learner.project(self.s_unlabeled,
                                              dense=True)
@@ -335,6 +346,8 @@ def train(arg_dict):
     fname_s_unlabeled = arg_dict['s_unlabeled_file']
     fname_t_unlabeled = arg_dict['t_unlabeled_file']
     fname_dict = arg_dict['dict_file']
+    fname_s_vec = arg_dict['s_word2vec_file']
+    fname_t_vec = arg_dict['t_word2vec_file']
 
     # Create vocabularies
     s_voc = vocabulary(fname_s_train, fname_s_unlabeled,
@@ -370,11 +383,16 @@ def train(arg_dict):
                         "serial": auxstrategy.SerialTrainingStrategy,
                         "parallel": partial(auxstrategy.ParallelTrainingStrategy,
                                             n_jobs=arg_dict['n_jobs'])}
-    # pdb.set_trace()
+    
+    vec_converter = VecConverter(s_ivoc, t_ivoc,
+                                 Word2Vec.load(fname_s_vec),
+                                 Word2Vec.load(fname_t_vec))
+
     clscl_trainer = CLSCLTrainer(s_train, s_unlabeled,
                                  t_unlabeled, pivotselector,
                                  translator, trainer,
                                  strategy_factory[arg_dict['strategy']](),
+                                 vec_converter,
                                  verbose=arg_dict['verbose'])
     clscl_trainer.s_ivoc = s_ivoc
     clscl_trainer.t_ivoc = t_ivoc
