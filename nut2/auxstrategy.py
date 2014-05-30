@@ -32,7 +32,7 @@ from collections import defaultdict
 import util.bow
 from util.debug import timeit, trace
 from joblib import Parallel, delayed
-
+import pdb
 
 class Error(Exception):
     pass
@@ -122,7 +122,7 @@ class ParallelTrainingStrategy(TrainingStrategy):
         if inverted_index == None:
             inverted_index = defaultdict(lambda: None)
         print "Run joblib.Parallel"
-        
+        # pdb.set_trace()
         res = Parallel(n_jobs=self.n_jobs, verbose=1)(
                 delayed(_train_aux_classifier)(i, auxtask,
                                                task_mask,
@@ -189,6 +189,8 @@ def _train_aux_classifier(i, auxtask, task_mask, ds,
     mask[task_mask] = 0
 
     ds = vec_converter.instance2vec(ds, mask)
+    mask = np.ones((ds.dim,), dtype=np.int32, order="C")
+    print("ds.dim = %d" % ds.dim)
 
     w = classifier_trainer.train_classifier(ds, mask)
     return i, (w.nonzero()[0], w[w.nonzero()[0]])

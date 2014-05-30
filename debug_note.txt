@@ -1,0 +1,44 @@
+
+SET VS90COMNTOOLS=%VS100COMNTOOLS%
+
+python clscl_train.py en de Z:/DataDeport/cls-acl10-processed/en/books/train.processed Z:/DataDeport/cls-acl10-processed/en/books/unlabeled.processed Z:/DataDeport/cls-acl10-processed/de/books/unlabeled.processed Z:/DataDeport/cls-acl10-processed/dict/en_de_dict.txt model.bz2 --phi 30 --max-unlabeled=50000 -k 100 -m 450 --strategy=parallel > cmd_res.txt
+
+python clscl_train.py en de Z:/DataDeport/cls-acl10-processed/en/books/train.processed Z:/DataDeport/cls-acl10-processed/en/books/unlabeled.processed Z:/DataDeport/cls-acl10-processed/de/books/unlabeled.processed Z:/DataDeport/cls-acl10-processed/dict/en_de_dict.txt model.bz2 --phi 30 --max-unlabeled=50000 -k 100 -m 450 --strategy=serial > cmd_res.txt
+
+|V_S| = 64682
+|V_T| = 106024
+|V| = 170706
+|s_train| = 2000
+|s_unlabeled| = 50000
+|t_unlabeled| = 50000
+debug: DictTranslator contains 5012 translations.
+mutualinformation took 5.624 sec
+select_pivots took 7.197 sec
+|pivots| = 450
+create_inverted_index took 59.353 sec
+Run joblib.Parallel
+[Parallel(n_jobs=-1)]: Done   1 out of 450 |elapsed:    9.1s remaining: 67.8min
+[Parallel(n_jobs=-1)]: Done   5 out of 450 |elapsed:   15.2s remaining: 22.6min
+[..]
+[Parallel(n_jobs=-1)]: Done 449 out of 450 |elapsed: 14.5min remaining:    1.9s
+train_aux_classifiers took 881.803 sec
+density: 0.1154
+Ut.shape = (100,170706)
+learn took 903.588 sec
+project took 175.483 sec
+
+python clscl_predict.py Z:/DataDeport/cls-acl10-processed/en/books/train.processed model.bz2 Z:/DataDeport/cls-acl10-processed/de/books/test.processed
+
+|V_S| = 64682
+|V_T| = 106024
+|V| = 170706
+load took 0.681 sec
+load took 0.659 sec
+classes = {negative,positive}
+project took 2.498 sec
+project took 2.716 sec
+project took 2.275 sec
+project took 2.492 sec
+ACC: 83.05
+
+python clscl_train.py en de Z:/DataDeport/cls-acl10-processed/en/books/train.processed Z:/DataDeport/cls-acl10-processed/en/books/unlabeled.processed Z:/DataDeport/cls-acl10-processed/de/books/unlabeled.processed Z:\DataDeport\cls-acl10-unprocessed\en\books\mymodel Z:\DataDeport\cls-acl10-unprocessed\de\books\mymodel Z:/DataDeport/cls-acl10-processed/dict/en_de_dict.txt model.bz2 --phi 30 --max-unlabeled=50000 -k 100 -m 450 --strategy=parallel --n-jobs=2

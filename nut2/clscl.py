@@ -36,6 +36,7 @@ from gensim import Word2Vec
 import bolt
 from joblib import Parallel, delayed
 
+
 __author__ = "Peter Prettenhofer <peter.prettenhofer@gmail.com>"
 __version__ = "0.1"
 
@@ -260,10 +261,10 @@ class CLSCLTrainer(object):
         equals 1.
         """
         
-        mask = np.ones((s_train.dim,), dtype=np.int32, order="C")
-        s_train = instance2vec(s_train, mask)
-        s_unlabeled = instance2vec(s_unlabeled, mask)
-        t_unlabeled = instance2vec(t_unlabeled, mask)
+        mask = np.ones((self.s_train.dim,), dtype=np.int32, order="C")
+        s_train = self.vec_converter.instance2vec(self.s_train, mask)
+        s_unlabeled = self.vec_converter(self.s_unlabeled, mask)
+        t_unlabeled = self.vec_converter(self.t_unlabeled, mask)
 
         s_train = struct_learner.project(self.s_train, dense=True)
         s_unlabeled = struct_learner.project(self.s_unlabeled,
