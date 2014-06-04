@@ -5,7 +5,7 @@
 # License: BSD Style
 
 import nut2.clscl
-from multiprocessing import freeze_support
+# from multiprocessing import freeze_support # use when run in Windows
 
 import argparse
 
@@ -125,5 +125,5 @@ def get_train_arg():
 if __name__ == '__main__':
      arg_dict = get_train_arg()
 
-     freeze_support()
+     # freeze_support()  # use when run in Windows
      nut2.clscl.train(arg_dict)

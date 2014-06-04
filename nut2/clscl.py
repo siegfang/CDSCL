@@ -260,11 +260,10 @@ class CLSCLTrainer(object):
         such that the average L2 norm of the training examples
         equals 1.
         """
-        
-        mask = np.ones((self.s_train.dim,), dtype=np.int32, order="C")
-        s_train = self.vec_converter.instance2vec(self.s_train, mask)
-        s_unlabeled = self.vec_converter(self.s_unlabeled, mask)
-        t_unlabeled = self.vec_converter(self.t_unlabeled, mask)
+
+        self.s_train = self.vec_converter.dataset2vec(self.s_train)
+        self.s_unlabeled = self.vec_converter.dataset2vec(self.s_unlabeled)
+        self.t_unlabeled = self.vec_converter.dataset2vec(self.t_unlabeled)
 
         s_train = struct_learner.project(self.s_train, dense=True)
         s_unlabeled = struct_learner.project(self.s_unlabeled,
@@ -418,12 +417,18 @@ def predict(arg_dict):
     fname_model = arg_dict['model_file']
     fname_t_test = arg_dict['t_test_file']
     reg = float(arg_dict['reg'])
+    fname_s_vec = arg_dict['s_word2vec_file']
+    fname_t_vec = arg_dict['t_word2vec_file']
 
     clscl_model = compressed_load(fname_model)
 
     s_voc = clscl_model.s_voc
     t_voc = clscl_model.t_voc
+    s_voc, t_voc, dim = disjoint_voc(s_voc, t_voc)
+    s_ivoc = dict([(idx, term) for term, idx in s_voc.items()])
+    t_ivoc = dict([(idx, term) for term, idx in t_voc.items()])
     dim = len(s_voc) + len(t_voc)
+
     print("|V_S| = %d\n|V_T| = %d" % (len(s_voc), len(t_voc)))
     print("|V| = %d" % dim)
 
@@ -432,6 +437,12 @@ def predict(arg_dict):
 
     print("classes = {%s}" % ",".join(classes))
     n_classes = len(classes)
+
+    vec_converter = VecConverter(s_ivoc, t_ivoc,
+                                 Word2Vec.load(fname_s_vec),
+                                 Word2Vec.load(fname_t_vec))
+    s_train = vec_converter.dataset2vec(s_train)
+    t_test = vec_converter.dataset2vec(t_test)
 
     train = clscl_model.project(s_train)
     test = clscl_model.project(t_test)

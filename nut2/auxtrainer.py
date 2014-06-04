@@ -16,6 +16,7 @@ from __future__ import division
 import math
 
 import bolt
+import pdb
 
 
 class AuxTrainer(object):

@@ -50,6 +50,7 @@ class TrainingStrategy(object):
     @abstractmethod
     def train_aux_classifiers(self, ds, auxtasks, task_masks,
                               classifier_trainer,
+                              vec_converter,
                               inverted_index=None):
         """Abstract method to train auxiliary classifiers."""
         return 0
@@ -63,12 +64,14 @@ class SerialTrainingStrategy(TrainingStrategy):
     """
 
     @timeit
-    def train_aux_classifiers(self, ds, auxtasks, task_masks,
-                              classifier_trainer, inverted_index=None):
+    def train_aux_classifiers(self, ds, auxtasks, task_masks, classifier_trainer,
+                              vec_converter, inverted_index=None):
         dim = ds.dim
         w_data = []
         row = []
         col = []
+
+        vec_converter.instance2vec(ds)
 
         for j, auxtask, task_mask in izip(count(), auxtasks, task_masks):
 
@@ -85,7 +88,10 @@ class SerialTrainingStrategy(TrainingStrategy):
             mask = np.ones((dim,), dtype=np.int32, order="C")
             mask[task_mask] = 0
 
-            w = classifier_trainer.train_classifier(ds, mask)
+            vec_ds = vec_converter.mask(ds, task_mask)
+            mask = np.ones((vec_ds.dim,), dtype=np.int32, order="C")
+
+            w = classifier_trainer.train_classifier(vec_ds, mask)
             for i in w.nonzero()[0]:
                 row.append(i)
                 col.append(j)
@@ -121,8 +127,9 @@ class ParallelTrainingStrategy(TrainingStrategy):
 
         if inverted_index == None:
             inverted_index = defaultdict(lambda: None)
-        print "Run joblib.Parallel"
         # pdb.set_trace()
+        vec_converter.instance2vec(ds)
+        print "Run joblib.Parallel"
         res = Parallel(n_jobs=self.n_jobs, verbose=1)(
                 delayed(_train_aux_classifier)(i, auxtask,
                                                task_mask,
@@ -188,11 +195,10 @@ def _train_aux_classifier(i, auxtask, task_mask, ds,
     mask = np.ones((ds.dim,), dtype=np.int32, order="C")
     mask[task_mask] = 0
 
-    ds = vec_converter.instance2vec(ds, mask)
-    mask = np.ones((ds.dim,), dtype=np.int32, order="C")
-    print("ds.dim = %d" % ds.dim)
+    vec_ds = vec_converter.mask(ds, task_mask)
+    mask = np.ones((vec_ds.dim,), dtype=np.int32, order="C")
 
-    w = classifier_trainer.train_classifier(ds, mask)
+    w = classifier_trainer.train_classifier(vec_ds, mask)
     return i, (w.nonzero()[0], w[w.nonzero()[0]])
 
 

@@ -28,6 +28,15 @@ def get_predict_arg():
                         action="store",
                         help="target language test file path")
 
+    parser.add_argument('s_word2vec_file',
+                         action="store",
+                         help="the path stored the source word2vec model")
+
+    parser.add_argument('t_word2vec_file',
+                         action="store",
+                         help="the path stored the target word2vec model")
+
+
     parser.add_argument("-v", "--verbose",
                         dest="verbose",
                         help="verbose output",

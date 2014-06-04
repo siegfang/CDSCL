@@ -42,3 +42,63 @@ project took 2.492 sec
 ACC: 83.05
 
 python clscl_train.py en de Z:/DataDeport/cls-acl10-processed/en/books/train.processed Z:/DataDeport/cls-acl10-processed/en/books/unlabeled.processed Z:/DataDeport/cls-acl10-processed/de/books/unlabeled.processed Z:\DataDeport\cls-acl10-unprocessed\en\books\mymodel Z:\DataDeport\cls-acl10-unprocessed\de\books\mymodel Z:/DataDeport/cls-acl10-processed/dict/en_de_dict.txt model.bz2 --phi 30 --max-unlabeled=50000 -k 100 -m 450 --strategy=parallel --n-jobs=2
+
+
+en de /Users/fangy/data/cls-acl10-processed/en/books/train.processed
+/Users/fangy/data/cls-acl10-processed/en/books/unlabeled.processed
+/Users/fangy/data/cls-acl10-processed/de/books/unlabeled.processed
+/Users/fangy/data/cl14-unprocessed/en/books/mymodel
+/Users/fangy/data/cl14-unprocessed/de/books/mymodel
+/Users/fangy/data/cls-acl10-processed/dict/en_de_dict.txt
+model.bz2 --phi 30 --max-unlabeled=500 -k 100 -m 450 --strategy=serial --n-jobs=2
+
+|V_S| = 7107
+|V_T| = 4116
+|V| = 11223
+classes = {negative,positive}
+|s_train| = 2000
+|s_unlabeled| = 500
+|t_unlabeled| = 500
+debug: DictTranslator contains 5012 translations.
+mutualinformation took 3.459 sec
+select_pivots took 3.538 sec
+|pivots| = 137
+|V| = 11223
+create_inverted_index took 0.303 sec
+Run joblib.Parallel
+/Users/fangy/code/CLSCL/nut2/gensim/word2vec.py:641: UnicodeWarning: Unicode equal comparison failed to convert both arguments to Unicode - interpreting them as being unequal
+  return word in self.vocab
+instance2vec took 2.130 sec
+[Parallel(n_jobs=2)]: Done   1 out of 137 |elapsed:    5.0s remaining: 11.2min
+[Parallel(n_jobs=2)]: Done   3 out of 137 |elapsed:   14.8s remaining: 11.1min
+...
+[Parallel(n_jobs=2)]: Done 135 out of 137 |elapsed: 10.7min remaining:    9.5s
+[Parallel(n_jobs=2)]: Done 137 out of 137 |elapsed: 10.9min remaining:    0.0s
+train_aux_classifiers took 659.068 sec
+density of W: 0.00842314
+Compute SVD w/o feature type splits
+W.nnz: 12951
+W.shape: (11223, 137)
+Ut.shape (100, 11223)
+Spectrum: 3.0326 - 120.8000
+________________________________________________________________________________
+thetat.shape (11223, 100)
+dim of embedding: 100
+learn took 659.096 sec
+project took 2.630 sec
+project took 0.639 sec
+project took 0.617 sec
+project took 10.652 sec
+
+--max-unlabeled 50000
+
+density of W: 0.00044278
+Compute SVD w/o feature type splits
+W.nnz: 34013
+W.shape: (170706, 450)
+Ut.shape (100, 170706)
+Spectrum: 7.0676 - 97.1676
+________________________________________________________________________________
+thetat.shape (170706, 100)
+dim of embedding: 100
+learn took 8805.271 sec

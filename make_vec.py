@@ -22,17 +22,9 @@ def read_en_xml_file(item_xml_file):
 
 class XMLItemSentence(object):
     def __init__(self, source, tokenizer):
-        """Simple format: one sentence = one line; words already preprocessed and separated by whitespace.
-
-        source can be either a string or a file object
-
-        Thus, one can use this for just plain files:
-
-            sentences = LineSentence('myfile.txt')
-
-        Or for compressed files:
-
-            sentences = LineSentence(bz2.BZ2File('compressed_text.bz2'))
+        """
+        Simple format: one sentence = one text node in item node;
+        words processed by NLTK. source a xml file object
         """
         self.source = source
         self.tokenizer = tokenizer
