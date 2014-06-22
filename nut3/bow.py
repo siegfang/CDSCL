@@ -1,30 +1,30 @@
-
+#!/usr/bin/python
 #
-# Author: siegfang
+# Author: Peter Prettenhofer <peter.prettenhofer@gmail.com>
 #
+# License: BSD Style
 
 import numpy as np
 
-import functools
-import operator
 from collections import defaultdict
-from itertools import chain
 
-from debug import timeit
-from .. import bolt
+from .util import timeit
+from .externals import bolt
+
 
 def parse_bow(line):
     tokens = [tf.split(':') for tf in line.rstrip().split(' ')]
-    s,label = tokens[-1]
+    s, label = tokens[-1]
     assert s == "#label#"
     tokens = tokens[:-1]
-    return label,[t for t in tokens if len(t) == 2 and len(t[0]) > 0]
+    return label, [t for t in tokens if len(t) == 2 and len(t[0]) > 0]
 
 def vectorize(tokens, voc):
     doc = [(voc[term], int(freq)) for term, freq in tokens
-       if term in voc]
+           if term in voc]
     doc = sorted(doc)
     return doc
+
 
 @timeit
 def vocabulary(*bowfnames, **kargs):
@@ -42,34 +42,20 @@ def vocabulary(*bowfnames, **kargs):
                 if maxlines != -1 and i >= maxlines:
                     break
                 label, tokens = parse_bow(line)
-                for token,freq in tokens:
+                for token, freq in tokens:
                     fd[token] += 1
-    voc = set([t for t,c in fd.iteritems() if c >= mindf])
+    voc = set([t for t, c in fd.iteritems() if c >= mindf])
     return voc
 
+
 def disjoint_voc(s_voc, t_voc):
+
+    s_voc = list(set(s_voc.union(t_voc)))
     n = len(s_voc)
-    m = len(t_voc)
     s_voc = dict(zip(s_voc, range(n)))
-    t_voc = dict(zip(t_voc, range(n, n + m)))
-    return s_voc, t_voc, len(s_voc) + len(t_voc)
+    t_voc = s_voc
+    return s_voc, t_voc, n
 
-def count(*datasets):
-    """Counts the example frequency of each feature in a list
-    of datasets. All data sets must have the same dimension.
-
-    Returns
-    -------
-    counts : array, shape = [datasets[0].dim]
-        counts[i] holds the number of examples in data sets for
-        which the i-th feature is non-zero.
-    """
-    if len(datasets) > 1:
-        assert functools.reduce(operator.eq, [ds.dim for ds in datasets])
-    counts = np.zeros((datasets[0].dim,), dtype=np.uint32)  # FIXME here was uint16
-    for x, y in chain(*datasets):
-        counts[x["f0"]] += 1
-    return counts
 
 @timeit
 def load(fname, voc, dim, maxlines=-1):
@@ -96,15 +82,3 @@ def load(fname, voc, dim, maxlines=-1):
     if len(classes) == 2:
         labels[labels == 0] = -1
     return bolt.MemoryDataset(dim, instances, labels), classes
-
-def autolabel(instances, auxtask):
-    labels = np.ones((instances.shape[0],), dtype=np.float32)
-    labels *= -1
-    for i, x in enumerate(instances):
-        indices = x['f0']
-        for idx in auxtask:
-            if idx in indices:
-                labels[i] = 1
-                break
-    
-    return labels

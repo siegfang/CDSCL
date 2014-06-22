@@ -35,7 +35,7 @@ except ImportError:
     import simplejson as json
 
 import bolt
-import util.bow
+import util
 from auxtrainer import *
 
 
@@ -64,7 +64,7 @@ def main(separator='\t'):
         trainer = eval(params[u"trainer"])
 
         # label according to auxtask
-        labels = util.bow.autolabel(instances, auxtask)
+        labels = util.autolabel(instances, auxtask)
 
         # mask features (either only auxtask or provided masks)
         mask = np.ones((ds.dim,), dtype=np.int32, order="C")

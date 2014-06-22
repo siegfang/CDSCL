@@ -70,7 +70,7 @@ def delayed(function):
     # Try to pickle the input function, to catch the problems early when
     # using with multiprocessing
     pickle.dumps(function)
-    
+
     @functools.wraps(function)
     def delayed_function(*args, **kwargs):
         return function, args, kwargs

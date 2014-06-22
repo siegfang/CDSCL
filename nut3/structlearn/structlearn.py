@@ -16,9 +16,9 @@ import sparsesvd
 from collections import defaultdict
 from itertools import chain, izip
 
-from util.debug import timeit, trace
-from auxstrategy import HadoopTrainingStrategy
-import bolt
+from ..util import timeit, trace
+from .auxstrategy import HadoopTrainingStrategy
+from ..externals import bolt
 
 __author__ = "Peter Prettenhofer <peter.prettenhofer@gmail.com>"
 
@@ -81,8 +81,8 @@ class StructLearner(object):
     inverted_index = None
 
     def __init__(self, k, dataset, auxtasks, classifier_trainer,
-                 training_strategy, vec_converter,
-                 task_masks=None, useinvertedindex=True, feature_types=None):
+                 training_strategy, task_masks=None,
+                 useinvertedindex=True, feature_types=None):
         if k < 1 or k > len(auxtasks):
             raise Error("0 < k < m")
         self.dataset = dataset
@@ -104,7 +104,6 @@ class StructLearner(object):
         else:
             feature_type_split = sorted(feature_types.values())
         self.feature_type_split = np.array(feature_type_split)
-        self.vec_converter = vec_converter
 
     @timeit
     def create_inverted_index(self):
@@ -133,7 +132,6 @@ class StructLearner(object):
                                                          self.auxtasks,
                                                          self.task_masks,
                                                          self.classifier_trainer,
-                                                         self.vec_converter,
                                                          inverted_index=self.inverted_index)
         density = W.nnz / float(W.shape[0] * W.shape[1])
         print "density of W: %.8f" % density

@@ -29,10 +29,10 @@ from scipy import sparse
 from itertools import izip, count
 from collections import defaultdict
 
-import util.bow
-from util.debug import timeit, trace
-from joblib import Parallel, delayed
-import pdb
+from ..structlearn import util
+from ..util import timeit, trace
+from ..externals.joblib import Parallel, delayed
+
 
 class Error(Exception):
     pass
@@ -50,7 +50,6 @@ class TrainingStrategy(object):
     @abstractmethod
     def train_aux_classifiers(self, ds, auxtasks, task_masks,
                               classifier_trainer,
-                              vec_converter,
                               inverted_index=None):
         """Abstract method to train auxiliary classifiers."""
         return 0
@@ -64,19 +63,17 @@ class SerialTrainingStrategy(TrainingStrategy):
     """
 
     @timeit
-    def train_aux_classifiers(self, ds, auxtasks, task_masks, classifier_trainer,
-                              vec_converter, inverted_index=None):
+    def train_aux_classifiers(self, ds, auxtasks, task_masks,
+                              classifier_trainer, inverted_index=None):
         dim = ds.dim
         w_data = []
         row = []
         col = []
 
-        vec_converter.instance2vec(ds)
-
         for j, auxtask, task_mask in izip(count(), auxtasks, task_masks):
 
             if inverted_index is None:
-                labels = util.bow.autolabel(ds.instances, auxtask)
+                labels = util.autolabel(ds.instances, auxtask)
             else:
                 occurances = inverted_index[j]
                 labels = np.ones((ds.n,), dtype=np.float32)
@@ -88,10 +85,7 @@ class SerialTrainingStrategy(TrainingStrategy):
             mask = np.ones((dim,), dtype=np.int32, order="C")
             mask[task_mask] = 0
 
-            vec_ds = vec_converter.mask(ds, task_mask)
-            mask = np.ones((vec_ds.dim,), dtype=np.int32, order="C")
-
-            w = classifier_trainer.train_classifier(vec_ds, mask)
+            w = classifier_trainer.train_classifier(ds, mask)
             for i in w.nonzero()[0]:
                 row.append(i)
                 col.append(j)
@@ -117,9 +111,7 @@ class ParallelTrainingStrategy(TrainingStrategy):
 
     @timeit
     def train_aux_classifiers(self, ds, auxtasks, task_masks,
-                              classifier_trainer,
-                              vec_converter,
-                              inverted_index=None):
+                              classifier_trainer, inverted_index=None):
         dim = ds.dim
         w_data = []
         row = []
@@ -127,14 +119,11 @@ class ParallelTrainingStrategy(TrainingStrategy):
 
         if inverted_index == None:
             inverted_index = defaultdict(lambda: None)
-        # pdb.set_trace()
-        vec_converter.instance2vec(ds)
         print "Run joblib.Parallel"
         res = Parallel(n_jobs=self.n_jobs, verbose=1)(
                 delayed(_train_aux_classifier)(i, auxtask,
                                                task_mask,
                                                ds, classifier_trainer,
-                                               vec_converter,
                                                inverted_index[i])
             for i, auxtask, task_mask in izip(count(), auxtasks, task_masks))
 
@@ -151,9 +140,7 @@ class ParallelTrainingStrategy(TrainingStrategy):
 
 
 def _train_aux_classifier(i, auxtask, task_mask, ds,
-                          classifier_trainer,
-                          vec_converter,
-                          occurrences=None):
+                          classifier_trainer, occurrences=None):
     """Trains a single auxiliary classifier.
 
     Parameters
@@ -184,7 +171,7 @@ def _train_aux_classifier(i, auxtask, task_mask, ds,
         second array holds the values.
     """
     if occurrences is None:
-        labels = util.bow.autolabel(ds.instances, auxtask)
+        labels = util.autolabel(ds.instances, auxtask)
     else:
         labels = np.ones((ds.n,), dtype=np.float32)
         labels *= -1.0
@@ -194,11 +181,7 @@ def _train_aux_classifier(i, auxtask, task_mask, ds,
     # create feature mask
     mask = np.ones((ds.dim,), dtype=np.int32, order="C")
     mask[task_mask] = 0
-
-    vec_ds = vec_converter.mask(ds, task_mask)
-    mask = np.ones((vec_ds.dim,), dtype=np.int32, order="C")
-
-    w = classifier_trainer.train_classifier(vec_ds, mask)
+    w = classifier_trainer.train_classifier(ds, mask)
     return i, (w.nonzero()[0], w[w.nonzero()[0]])
 
 
@@ -289,7 +272,7 @@ class HadoopTrainingStrategy(TrainingStrategy):
 
         fmapper = inspect.getsourcefile(dumbomapper)
         fauxtrainer = inspect.getsourcefile(auxtrainer)
-        futil = inspect.getsourcefile(util.bow)
+        futil = inspect.getsourcefile(util)
 
         param = {"ftasks": ftasks, "fexamples": fexamples, "fout": fout,
                  "streaming_jar": streaming_jar, "futil": futil,

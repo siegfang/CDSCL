@@ -1,6 +1,7 @@
-#!/usr/bin/python
+# !/usr/bin/python
 #
 # Author: Peter Prettenhofer <peter.prettenhofer@gmail.com>
+#         Fang Yuan
 #
 # License: BSD Style
 
@@ -11,37 +12,33 @@ clscl
 """
 from __future__ import division
 
-import pdb
-
 import numpy as np
 import math
 import optparse
 import copy
 
-from itertools import islice, ifilter
+from itertools import islice
 from functools import partial
 from pprint import pprint
 
-import pivotselection
-import util.bow
-import structlearn
-import auxtrainer
-import auxstrategy
-from util.io import compressed_dump, compressed_load
-from util.bow import vocabulary, disjoint_voc, load
-from util.debug import timeit
-from util.vec import VecConverter
-from structlearn import standardize
-from gensim import Word2Vec
-import bolt
-from joblib import Parallel, delayed
+from ..structlearn import pivotselection
+from ..structlearn import util
+from ..structlearn import structlearn
+from ..structlearn import auxtrainer
+from ..structlearn import auxstrategy
+from ..io import compressed_dump, compressed_load
+from ..bow import vocabulary, disjoint_voc, load
+from ..util import timeit
+from ..structlearn import standardize
+from ..externals import bolt
+from ..externals.joblib import Parallel, delayed
+
+__author__ = "Peter Prettenhofer <peter.prettenhofer@gmail.com> &" \
+             "Fang Yuan"
+__version__ = "0.2"
 
 
-__author__ = "Peter Prettenhofer <peter.prettenhofer@gmail.com>"
-__version__ = "0.1"
-
-
-class CLSCLModel(object):
+class CDSCLModel(object):
     """
 
     Parameters
@@ -77,6 +74,7 @@ class CLSCLModel(object):
         Target vocabulary.
 
     """
+
     def __init__(self, struct_learner, mean=None, std=None, avg_norm=None):
         self.struct_learner = struct_learner
         # self.thetat = thetat
@@ -119,8 +117,8 @@ class CLSCLModel(object):
         return new_ds
 
 
-class CLSCLTrainer(object):
-    """Trainer class that creates CLSCLModel objects.
+class CDSCLTrainer(object):
+    """Trainer class that creates CDSCLModel objects.
 
     Parameters
     ----------
@@ -160,17 +158,15 @@ class CLSCLTrainer(object):
     """
 
     def __init__(self, s_train, s_unlabeled, t_unlabeled,
-                 pivotselector, pivottranslator, trainer, strategy, vec_converter,
+                 pivotselector, trainer, strategy,
                  verbose=0):
         self.s_train = s_train
         self.s_unlabeled = s_unlabeled
         self.t_unlabeled = t_unlabeled
         self.pivotselector = pivotselector
-        self.pivottranslator = pivottranslator
         self.trainer = trainer
         self.strategy = strategy
         self.verbose = verbose
-        self.vec_converter = vec_converter
 
     @timeit
     def select_pivots(self, m, phi):
@@ -197,13 +193,14 @@ class CLSCLTrainer(object):
             the target word.
             The number of pivots might be smaller than `m`.
         """
-        vp = self.pivotselector.select(self.s_train)
-        candidates = ifilter(lambda x: x[1] != None,
-                             ((ws, self.pivottranslator[ws])
-                              for ws in vp))
-        counts = util.bow.count(self.s_unlabeled, self.t_unlabeled)
+        s_vp = self.pivotselector.select(self.s_train)
+        t_vp = self.pivotselector.select(self.t_unlabeled)
+        s_vp, t_vp = list(s_vp), list(t_vp)
+        candidates = [(s_vp[idx], t_vp[idx]) for idx in range(min(len(s_vp), len(t_vp)))]
+
+        counts = util.count(self.s_unlabeled, self.t_unlabeled)
         pivots = (np.array([ws, wt]) for ws, wt in candidates \
-                         if counts[ws] >= phi and counts[wt] >= phi)
+                  if counts[ws] >= phi and counts[wt] >= phi)
         pivots = [pivot for pivot in islice(pivots, m)]
         if self.verbose > 1:
             terms = [(self.s_ivoc[ws], self.t_ivoc[wt]) for ws, wt in pivots]
@@ -228,7 +225,7 @@ class CLSCLTrainer(object):
 
         Returns
         -------
-        model : CLSCLModel
+        model : CDSCLModel
             The trained model.
 
         """
@@ -240,12 +237,11 @@ class CLSCLTrainer(object):
         ds.shuffle(13)
         struct_learner = structlearn.StructLearner(k, ds, pivots,
                                                    self.trainer,
-                                                   self.strategy,
-                                                   self.vec_converter)
+                                                   self.strategy)
         struct_learner.learn()
         self.project(struct_learner, verbose=1)
         del struct_learner.dataset
-        return CLSCLModel(struct_learner, mean=self.mean,
+        return CDSCLModel(struct_learner, mean=self.mean,
                           std=self.std, avg_norm=self.avg_norm)
 
     @timeit
@@ -260,11 +256,6 @@ class CLSCLTrainer(object):
         such that the average L2 norm of the training examples
         equals 1.
         """
-
-        self.s_train = self.vec_converter.dataset2vec(self.s_train)
-        self.s_unlabeled = self.vec_converter.dataset2vec(self.s_unlabeled)
-        self.t_unlabeled = self.vec_converter.dataset2vec(self.t_unlabeled)
-
         s_train = struct_learner.project(self.s_train, dense=True)
         s_unlabeled = struct_learner.project(self.s_unlabeled,
                                              dense=True)
@@ -291,116 +282,198 @@ class CLSCLTrainer(object):
         del self.s_unlabeled
         del self.t_unlabeled
 
-
-class DictTranslator(object):
-    """Pivot translation oracle backed by a bilingual
-    dictionary represented as a tab separated text file.
+def train_args_parser():
+    """Create argument and option parser for the
+    training script.
     """
+    description = """Prefixes `s_` and `t_` refer to source and target language
+    , resp. Train and unlabeled files are expected to be in Bag-of-Words format.
+    """
+    parser = optparse.OptionParser(usage="%prog [options] " \
+                                         "s_lang t_lang s_train_file " \
+                                         "s_unlabeled_file t_unlabeled_file " \
+                                         "model_file",
+                                   version="%prog " + __version__,
+                                   description=description)
 
-    def __init__(self, dictionary, s_ivoc, t_voc):
-        self.dictionary = dictionary
-        self.s_ivoc = s_ivoc
-        self.t_voc = t_voc
-        print("debug: DictTranslator contains " \
-              "%d translations." % len(dictionary))
+    parser.add_option("-v", "--verbose",
+                      dest="verbose",
+                      help="verbose output",
+                      default=1,
+                      metavar="[0,1,2]",
+                      type="int")
 
-    def __getitem__(self, ws):
-        try:
-            wt = self.normalize(self.dictionary[self.s_ivoc[ws]])
-        except KeyError:
-            wt = None
-        return wt
+    parser.add_option("-k",
+                      dest="k",
+                      help="dimensionality of cross-lingual representation.",
+                      default=100,
+                      metavar="int",
+                      type="int")
 
-    def translate(self, ws):
-        return self[ws]
+    parser.add_option("-m",
+                      dest="m",
+                      help="number of pivots.",
+                      default=450,
+                      metavar="int",
+                      type="int")
 
-    def normalize(self, wt):
-        wt = wt.encode("utf-8") if isinstance(wt, unicode) else wt
-        wt = wt.split(" ")[0].lower()
-        if wt in self.t_voc:
-            return self.t_voc[wt]
-        else:
-            return None
+    parser.add_option("--max-unlabeled",
+                      dest="max_unlabeled",
+                      help="max number of unlabeled documents to read;" \
+                           "-1 for unlimited.",
+                      default=-1,
+                      metavar="int",
+                      type="int")
 
-    @classmethod
-    def load(cls, fname, s_ivoc, t_voc):
-        dictionary = []
-        with open(fname) as f:
-            for i, line in enumerate(f):
-                ws, wt = line.rstrip().split("\t")
-                dictionary.append((ws, wt))
-        dictionary = dict(dictionary)
-        return DictTranslator(dictionary, s_ivoc, t_voc)
+    parser.add_option("-p", "--phi",
+                      dest="phi",
+                      help="minimum support of pivots.",
+                      default=30,
+                      metavar="int",
+                      type="int")
+
+    parser.add_option("-r", "--pivot-reg",
+                      dest="preg",
+                      help="regularization parameter lambda for " \
+                           "the pivot classifiers.",
+                      default=0.00001,
+                      metavar="float",
+                      type="float")
+
+    parser.add_option("-a", "--alpha",
+                      dest="alpha",
+                      help="elastic net hyperparameter alpha.",
+                      default=0.85,
+                      metavar="float",
+                      type="float")
+
+    parser.add_option("--strategy",
+                      dest="strategy",
+                      help="The strategy to compute the pivot classifiers." \
+                           "Either 'serial' or 'parallel' [default] or 'hadoop'.",
+                      default="parallel",
+                      metavar="str",
+                      type="str")
+
+    parser.add_option("--n-jobs",
+                      dest="n_jobs",
+                      help="The number of processes to fork." \
+                           "Only if strategy is 'parallel'.",
+                      default=-1,
+                      metavar="int",
+                      type="int")
+
+    return parser
 
 
-def train(arg_dict):
-    """Training script for CLSCL.
+def train():
+    """Training script for CDSCL.
 
     TODO: different translators.
     """
+    parser = train_args_parser()
+    options, argv = parser.parse_args()
+    if len(argv) != 6:
+        parser.error("incorrect number of arguments (use `--help` for help).")
 
-    slang = arg_dict['s_lang']
-    tlang = arg_dict['t_lang']
+    slang = argv[0]
+    tlang = argv[1]
 
-    fname_s_train = arg_dict['s_labeled_file']
-    fname_s_unlabeled = arg_dict['s_unlabeled_file']
-    fname_t_unlabeled = arg_dict['t_unlabeled_file']
-    fname_dict = arg_dict['dict_file']
-    fname_s_vec = arg_dict['s_word2vec_file']
-    fname_t_vec = arg_dict['t_word2vec_file']
+    fname_s_train = argv[2]
+    fname_s_unlabeled = argv[3]
+    fname_t_unlabeled = argv[4]
 
     # Create vocabularies
     s_voc = vocabulary(fname_s_train, fname_s_unlabeled,
                        mindf=2,
-                       maxlines=arg_dict['max_unlabeled'])
+                       maxlines=options.max_unlabeled)
     t_voc = vocabulary(fname_t_unlabeled,
                        mindf=2,
-                       maxlines=arg_dict['max_unlabeled'])
+                       maxlines=options.max_unlabeled)
     s_voc, t_voc, dim = disjoint_voc(s_voc, t_voc)
+
     s_ivoc = dict([(idx, term) for term, idx in s_voc.items()])
-    t_ivoc = dict([(idx, term) for term, idx in t_voc.items()])
+    t_ivoc = s_ivoc
+
     print("|V_S| = %d\n|V_T| = %d" % (len(s_voc), len(t_voc)))
     print("|V| = %d" % dim)
 
     # Load labeled and unlabeled data
     s_train, classes = load(fname_s_train, s_voc, dim)
     s_unlabeled, _ = load(fname_s_unlabeled, s_voc, dim,
-                       maxlines=arg_dict['max_unlabeled'])
+                          maxlines=options.max_unlabeled)
     t_unlabeled, _ = load(fname_t_unlabeled, t_voc, dim,
-                       maxlines=arg_dict['max_unlabeled'])
+                          maxlines=options.max_unlabeled)
     print("classes = {%s}" % ",".join(classes))
     print("|s_train| = %d" % s_train.n)
     print("|s_unlabeled| = %d" % s_unlabeled.n)
     print("|t_unlabeled| = %d" % t_unlabeled.n)
 
-    # Load dictionary
-    translator = DictTranslator.load(fname_dict, s_ivoc, t_voc)
-
     pivotselector = pivotselection.MISelector()
-    trainer = auxtrainer.ElasticNetTrainer(arg_dict['preg'], arg_dict['alpha'],
-                                           10**6)
+    trainer = auxtrainer.ElasticNetTrainer(options.preg, options.alpha,
+                                           10 ** 6)
     strategy_factory = {"hadoop": auxstrategy.HadoopTrainingStrategy,
                         "serial": auxstrategy.SerialTrainingStrategy,
                         "parallel": partial(auxstrategy.ParallelTrainingStrategy,
-                                            n_jobs=arg_dict['n_jobs'])}
-    
-    vec_converter = VecConverter(s_ivoc, t_ivoc,
-                                 Word2Vec.load(fname_s_vec),
-                                 Word2Vec.load(fname_t_vec))
-
-    clscl_trainer = CLSCLTrainer(s_train, s_unlabeled,
+                                            n_jobs=options.n_jobs)}
+    clscl_trainer = CDSCLTrainer(s_train, s_unlabeled,
                                  t_unlabeled, pivotselector,
-                                 translator, trainer,
-                                 strategy_factory[arg_dict['strategy']](),
-                                 vec_converter,
-                                 verbose=arg_dict['verbose'])
+                                 trainer,
+                                 strategy_factory[options.strategy](),
+                                 verbose=options.verbose)
     clscl_trainer.s_ivoc = s_ivoc
     clscl_trainer.t_ivoc = t_ivoc
-    model = clscl_trainer.train(arg_dict['m'], arg_dict['phi'], arg_dict['k'])
+    model = clscl_trainer.train(options.m, options.phi, options.k)
 
     model.s_voc = s_voc
     model.t_voc = t_voc
-    compressed_dump(arg_dict['model_file'], model)
+    compressed_dump(argv[5], model)
+
+
+def predict_args_parser():
+    """Create argument and option parser for the
+    prediction script.
+    """
+    description = """Prefixes `s_` and `t_` refer to source and target language
+    , resp. Train and unlabeled files are expected to be in Bag-of-Words format.
+    """
+    parser = optparse.OptionParser(usage="%prog [options] " \
+                                         "s_train_file " \
+                                         "model_file " \
+                                         "t_test_file",
+                                   version="%prog " + __version__,
+                                   description=description)
+
+    parser.add_option("-v", "--verbose",
+                      dest="verbose",
+                      help="verbose output",
+                      default=1,
+                      metavar="[0,1,2]",
+                      type="int")
+
+    parser.add_option("-R", "--repetition",
+                      dest="repetition",
+                      help="Repeat training `repetition` times and " \
+                           "report avg. error.",
+                      default=10,
+                      metavar="int",
+                      type="int")
+
+    parser.add_option("-r", "--reg",
+                      dest="reg",
+                      help="regularization parameter lambda. ",
+                      default=0.01,
+                      metavar="float",
+                      type="float")
+
+    parser.add_option("--n-jobs",
+                      dest="n_jobs",
+                      help="The number of processes to fork.",
+                      default=1,
+                      metavar="int",
+                      type="int")
+
+    return parser
 
 
 def clone(my_object):
@@ -408,26 +481,24 @@ def clone(my_object):
     return copy.deepcopy(my_object)
 
 
-def predict(arg_dict):
+def predict():
     """Prediction script for CLSCL.  """
-    # if len(arg_dict) != 3:
-    #     parser.error("incorrect number of arguments (use `--help` for help).")
+    parser = predict_args_parser()
+    options, argv = parser.parse_args()
+    if len(argv) != 3:
+        parser.error("incorrect number of arguments (use `--help` for help).")
 
-    fname_s_train = arg_dict['s_labeled_file']
-    fname_model = arg_dict['model_file']
-    fname_t_test = arg_dict['t_test_file']
-    reg = float(arg_dict['reg'])
-    fname_s_vec = arg_dict['s_word2vec_file']
-    fname_t_vec = arg_dict['t_word2vec_file']
+    fname_s_train = argv[0]
+    fname_model = argv[1]
+    fname_t_test = argv[2]
+    reg = float(options.reg)
 
     clscl_model = compressed_load(fname_model)
 
     s_voc = clscl_model.s_voc
     t_voc = clscl_model.t_voc
-    s_voc, t_voc, dim = disjoint_voc(s_voc, t_voc)
-    s_ivoc = dict([(idx, term) for term, idx in s_voc.items()])
-    t_ivoc = dict([(idx, term) for term, idx in t_voc.items()])
-    dim = len(s_voc) + len(t_voc)
+
+    dim = len(s_voc)
 
     print("|V_S| = %d\n|V_T| = %d" % (len(s_voc), len(t_voc)))
     print("|V| = %d" % dim)
@@ -438,18 +509,12 @@ def predict(arg_dict):
     print("classes = {%s}" % ",".join(classes))
     n_classes = len(classes)
 
-    vec_converter = VecConverter(s_ivoc, t_ivoc,
-                                 Word2Vec.load(fname_s_vec),
-                                 Word2Vec.load(fname_t_vec))
-    s_train = vec_converter.dataset2vec(s_train)
-    t_test = vec_converter.dataset2vec(t_test)
-
     train = clscl_model.project(s_train)
     test = clscl_model.project(t_test)
 
     del clscl_model  # free clscl model
-    
-    epochs = int(math.ceil(10.0**6 / train.n))
+
+    epochs = int(math.ceil(10.0 ** 6 / train.n))
     loss = bolt.ModifiedHuber()
     sgd = bolt.SGD(loss, reg, epochs=epochs, norm=2)
     if n_classes == 2:
@@ -460,9 +525,9 @@ def predict(arg_dict):
                                             biasterm=False)
         trainer = bolt.trainer.OVA(sgd)
 
-    scores = Parallel(n_jobs=arg_dict['n_jobs'], verbose=arg_dict['verbose'])(
-                delayed(_predict_score)(i, trainer, clone(model), train, test)
-        for i in range(arg_dict['repetition']))
+    scores = Parallel(n_jobs=options.n_jobs, verbose=options.verbose)(
+        delayed(_predict_score)(i, trainer, clone(model), train, test)
+        for i in range(options.repetition))
     print "ACC: %.2f (%.2f)" % (np.mean(scores), np.std(scores))
 
 

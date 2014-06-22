@@ -1,3 +1,5 @@
+#!/usr/bin/python
+#
 # Author: Peter Prettenhofer <peter.prettenhofer@gmail.com>
 #
 # License: BSD Style
@@ -14,6 +16,9 @@ in particular corpus reader classes.
 import bz2
 import gzip
 import cPickle as pickle
+
+from . import conll
+
 
 def compressed_dump(fname, model):
     """Pickle the model and write it to `fname`.
